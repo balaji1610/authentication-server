@@ -5,7 +5,8 @@ const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const userList = require("./models/userList");
 const authenticateToken = require("./middleware/authenticate");
-
+const sendVerificationEmail = require("./sendVerificationEmail");
+const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
@@ -23,37 +24,32 @@ mongoose
   .catch((err) => console.log(err));
 
 app.get("/", (req, res) => {
-  res.send("App is running..");
+  res.send("App is running...");
 });
 
 app.post("/createAccount", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const DuplicateUsername = await userList.findOne(
-      { username: username },
-      { __v: 0 }
-    );
+    const { username, email, password } = req.body;
+    const existingUser = await userList.findOne({ email: email }, { __v: 0 });
     const saltType = 10;
     const hashedPassword = await bcrypt.hash(password, saltType);
-    const date = new Date();
-    const options = {
-      dateStyle: "medium",
-      timeStyle: "short",
-      hour12: true,
-      timeZone: "Asia/Kolkata",
-    };
 
-    const adduser = {
-      username: username,
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const newUser = new userList({
+      username,
+      email,
       password: hashedPassword,
-      createdAt: new Intl.DateTimeFormat("en-GB", options).format(date),
-    };
-
-    if (DuplicateUsername) {
-      res.status(201).json({ message: "User is already registered" });
+      verificationToken,
+    });
+    if (existingUser) {
+      res.status(201).json({ message: "user Email is already registered" });
     } else {
-      const result = await userList.create(adduser);
-      res.status(201).json(result);
+      await userList.create(newUser);
+      await sendVerificationEmail(newUser, verificationToken);
+      res
+        .status(201)
+        .json({ message: "Account created. Please verify your email. " });
     }
   } catch (err) {
     res.status(500).json({
@@ -84,6 +80,30 @@ app.post("/authLogin", async (req, res) => {
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/verifyEmail/:id", async (req, res) => {
+  try {
+    const user = await userList.findOne({ verificationToken: req.params.id });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+    if (user) {
+      const verifiyEmail = await userList.findByIdAndUpdate(
+        { _id: user._id },
+        { isVerified: true, verificationToken: "" },
+        { new: true }
+      );
+
+      res.status(201).json({
+        message: "Email verified successfully. You can now log in.",
+        result: verifiyEmail,
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Error verifying email" });
   }
 });
 
