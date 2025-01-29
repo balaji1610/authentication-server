@@ -102,10 +102,9 @@ app.get("/verifyEmail/:id", async (req, res) => {
         { isVerified: true, verificationToken: "" },
         { new: true }
       );
-
+     
       res.status(201).json({
         message: "Email verified successfully. You can now log in.",
-        result: verifiyEmail,
       });
     }
   } catch (err) {
