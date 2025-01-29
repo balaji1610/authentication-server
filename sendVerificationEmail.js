@@ -12,7 +12,7 @@ const sendVerificationEmail = async (user, token) => {
     },
   });
 
-  const verificationLink = `${process.env.FRONTEND_URL}/verify-email?${token}`;
+  const verificationLink = `${process.env.FRONTEND_URL}/verifyEmail/${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
