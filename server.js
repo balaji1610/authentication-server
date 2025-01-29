@@ -64,6 +64,11 @@ app.post("/authLogin", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await userList.findOne({ email });
+    if (!user.isVerified) {
+      return res
+        .status(403)
+        .json({ message: "Please verify your email before logging in." });
+    }
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -72,11 +77,7 @@ app.post("/authLogin", async (req, res) => {
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Invalid Password" });
     }
-    if (!user.isVerified) {
-      return res
-        .status(403)
-        .json({ message: "Please verify your email before logging in." });
-    }
+
     const token = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET
