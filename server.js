@@ -35,14 +35,15 @@ app.post("/createAccount", async (req, res) => {
     const saltType = 10;
     const hashedPassword = await bcrypt.hash(password, saltType);
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const updatePasswordToken = crypto.randomBytes(32).toString("hex");
+
     const newUser = new userList({
       username,
       email,
       password: hashedPassword,
       isVerified: false,
       verificationToken,
-      updatePasswordToken,
+      updatePasswordToken: "",
+      isexpiredPasswordToken: false,
     });
     if (existingUser) {
       res.status(201).json({ message: "user Email is already registered" });
@@ -118,10 +119,13 @@ app.post("/findAccount", async (req, res) => {
   try {
     const { email } = req.body;
     const findAccount = await userList.findOne({ email: email }, { __v: 0 });
+    const updatePasswordToken = crypto.randomBytes(32).toString("hex");
     if (findAccount) {
-      await passwordVerificationEmail(
-        findAccount,
-        findAccount.updatePasswordToken
+      await passwordVerificationEmail(findAccount, updatePasswordToken);
+      const savePasswordToken = await userList.findByIdAndUpdate(
+        { _id: findAccount._id },
+        { updatePasswordToken: updatePasswordToken },
+        { new: true }
       );
       res.status(201).json({
         message: "Successfully Find Your Account, Please verify your email.",
@@ -148,7 +152,7 @@ app.get("/updatePasswordBeforeVerifyEmail/:id", async (req, res) => {
     if (user) {
       const verifiyEmail = await userList.findByIdAndUpdate(
         { _id: user._id },
-        { updatePasswordToken: "" },
+        { updatePasswordToken: "", isexpiredPasswordToken: true },
         { new: true }
       );
 
