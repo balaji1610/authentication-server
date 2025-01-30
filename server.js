@@ -171,11 +171,12 @@ app.post("/updatePassword", async (req, res) => {
   const { _id, password } = req.body;
   try {
     const findUser = await userList.findOne({ _id: _id });
-
+    const saltType = 10;
+    const hashedPassword = await bcrypt.hash(password, saltType);
     if (findUser) {
       const updatePwd = await userList.findByIdAndUpdate(
         { _id: _id },
-        { password: password },
+        { password: hashedPassword },
         { new: true }
       );
       return res.status(201).json({ message: "SucessFully Update Password !" });
