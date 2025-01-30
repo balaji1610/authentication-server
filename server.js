@@ -6,6 +6,7 @@ const cors = require("cors");
 const userList = require("./models/userList");
 const authenticateToken = require("./middleware/authenticate");
 const sendVerificationEmail = require("./sendVerificationEmail");
+const passwordVerificationEmail = require("./passwordVerificationEmail");
 const crypto = require("crypto");
 require("dotenv").config();
 
@@ -33,15 +34,15 @@ app.post("/createAccount", async (req, res) => {
     const existingUser = await userList.findOne({ email: email }, { __v: 0 });
     const saltType = 10;
     const hashedPassword = await bcrypt.hash(password, saltType);
-
     const verificationToken = crypto.randomBytes(32).toString("hex");
-
+    const updatePasswordToken = crypto.randomBytes(32).toString("hex");
     const newUser = new userList({
       username,
       email,
       password: hashedPassword,
       isVerified: false,
       verificationToken,
+      updatePasswordToken,
     });
     if (existingUser) {
       res.status(201).json({ message: "user Email is already registered" });
@@ -102,13 +103,83 @@ app.get("/verifyEmail/:id", async (req, res) => {
         { isVerified: true, verificationToken: "" },
         { new: true }
       );
-     
+
       res.status(201).json({
         message: "Email verified successfully. You can now log in.",
       });
     }
   } catch (err) {
     res.status(500).json({ message: "Error verifying email" });
+  }
+});
+
+//resetPassword
+app.post("/findAccount", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const findAccount = await userList.findOne({ email: email }, { __v: 0 });
+    if (findAccount) {
+      await passwordVerificationEmail(
+        findAccount,
+        findAccount.updatePasswordToken
+      );
+      res.status(201).json({
+        message: "Successfully Find Your Account, Please verify your email.",
+      });
+    } else {
+      res.status(403).json({
+        message: "Account Not registered",
+      });
+    }
+  } catch (err) {
+    res.status(500).json({
+      message: "An error occurred while creating the account",
+      error: err,
+    });
+  }
+});
+app.get("/updatePasswordBeforeVerifyEmail/:id", async (req, res) => {
+  try {
+    const user = await userList.findOne({ updatePasswordToken: req.params.id });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+    if (user) {
+      const verifiyEmail = await userList.findByIdAndUpdate(
+        { _id: user._id },
+        { updatePasswordToken: "" },
+        { new: true }
+      );
+
+      res.status(201).json({
+        message: "Email verified successfully. You can Update Password",
+        result: { _id: user._id, email: user.email },
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Error verifying email" });
+  }
+});
+
+//updatePassword
+app.post("/updatePassword", async (req, res) => {
+  const { _id, password } = req.body;
+  try {
+    const findUser = await userList.findOne({ _id: _id });
+
+    if (findUser) {
+      const updatePwd = await userList.findByIdAndUpdate(
+        { _id: _id },
+        { password: password },
+        { new: true }
+      );
+      return res.status(201).json({ message: "SucessFully Update Password !" });
+    } else {
+      return res.status(400).json({ message: "User Not Found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
 });
 
